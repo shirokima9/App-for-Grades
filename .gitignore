@@ -1,0 +1,10 @@
+node_modules/
+client/node_modules/
+client/dist/
+data/
+backups/
+exports/
+submissions/
+uploads/
+*.log
+.DS_Store

@@ -1,0 +1,135 @@
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --text: #14201f;
+  --muted: #5b6b6a;
+  --primary: #0f766e;
+  --primary-contrast: #ffffff;
+  --border: #d7dedd;
+  --ok-bg: #e7f6ec;
+  --ok-text: #14652d;
+  --warn-bg: #fdf3d7;
+  --warn-text: #7a5a06;
+  --danger-bg: #fdeaea;
+  --danger-text: #9c1f1f;
+  --info-bg: #e8f0fb;
+  --info-text: #1d4e97;
+}
+[data-theme='dark'] {
+  --bg: #101615;
+  --surface: #1a2321;
+  --text: #eef4f3;
+  --muted: #9fb0ae;
+  --primary: #2dd4bf;
+  --primary-contrast: #06302b;
+  --border: #31403d;
+  --ok-bg: #10301b;
+  --ok-text: #7fdc9c;
+  --warn-bg: #38300d;
+  --warn-text: #f2d264;
+  --danger-bg: #3b1414;
+  --danger-text: #f79c9c;
+  --info-bg: #14263f;
+  --info-text: #8ab6f5;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: 'Cairo', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 17px;
+  line-height: 1.6;
+}
+
+.topbar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px;
+  background: var(--primary); color: var(--primary-contrast);
+  position: sticky; top: 0; z-index: 10;
+}
+.topbar h1 { font-size: 1.15rem; margin: 0; flex: 1; }
+.topbar button {
+  background: rgba(255,255,255,0.18); color: inherit;
+  border: none; border-radius: 8px; padding: 8px 12px;
+  font: inherit; cursor: pointer; min-height: 44px;
+}
+
+.nav {
+  display: flex; gap: 4px; padding: 8px 10px;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+.nav a {
+  padding: 10px 16px; border-radius: 10px; text-decoration: none;
+  color: var(--text); font-weight: 600; white-space: nowrap; min-height: 44px;
+  display: flex; align-items: center;
+}
+.nav a.active { background: var(--primary); color: var(--primary-contrast); }
+
+main { padding: 14px; max-width: 1000px; margin: 0 auto; }
+
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 16px; margin-bottom: 14px;
+}
+.card h2 { margin-top: 0; font-size: 1.15rem; }
+.card h3 { font-size: 1rem; }
+
+button.primary, .btn {
+  background: var(--primary); color: var(--primary-contrast);
+  border: none; border-radius: 10px; padding: 12px 20px;
+  font: inherit; font-weight: 700; cursor: pointer; min-height: 48px;
+}
+button.primary:disabled { opacity: 0.45; cursor: not-allowed; }
+button.ghost {
+  background: transparent; color: var(--text);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 12px 20px; font: inherit; cursor: pointer; min-height: 48px;
+}
+
+input, select {
+  font: inherit; color: var(--text); background: var(--bg);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px 12px; min-height: 46px; max-width: 100%;
+}
+label { display: block; font-weight: 600; margin-bottom: 4px; }
+.field { margin-bottom: 12px; }
+.rowflex { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+
+table.data {
+  width: 100%; border-collapse: collapse; font-size: 0.95rem;
+}
+table.data th, table.data td {
+  border: 1px solid var(--border); padding: 8px 10px; text-align: start;
+}
+table.data th { background: var(--bg); }
+.tablewrap { overflow-x: auto; }
+
+.badge {
+  display: inline-block; padding: 2px 10px; border-radius: 999px;
+  font-size: 0.85rem; font-weight: 700;
+}
+.badge.ok { background: var(--ok-bg); color: var(--ok-text); }
+.badge.warn { background: var(--warn-bg); color: var(--warn-text); }
+.badge.danger { background: var(--danger-bg); color: var(--danger-text); }
+.badge.info { background: var(--info-bg); color: var(--info-text); }
+
+.alert {
+  padding: 12px 14px; border-radius: 10px; margin-bottom: 12px; font-weight: 600;
+}
+.alert.danger { background: var(--danger-bg); color: var(--danger-text); }
+.alert.ok { background: var(--ok-bg); color: var(--ok-text); }
+.alert.warn { background: var(--warn-bg); color: var(--warn-text); }
+.alert.info { background: var(--info-bg); color: var(--info-text); }
+
+.muted { color: var(--muted); font-size: 0.9rem; }
+.summary-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.steps { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+.steps span {
+  padding: 6px 12px; border-radius: 999px; font-size: 0.85rem;
+  background: var(--surface); border: 1px solid var(--border);
+}
+.steps span.active { background: var(--primary); color: var(--primary-contrast); border-color: var(--primary); }
+.steps span.done { background: var(--ok-bg); color: var(--ok-text); }

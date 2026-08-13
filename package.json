@@ -1,0 +1,23 @@
+{
+  "name": "app-for-grades",
+  "version": "1.0.0",
+  "description": "تطبيق إدارة درجات الطلاب — محلي بالكامل (PWA)",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "postinstall": "npm --prefix client install",
+    "build:client": "npm --prefix client run build",
+    "start": "npm run build:client && node server/index.js",
+    "dev": "node server/index.js",
+    "make:sample": "node scripts/make-sample.js",
+    "test": "node --test 'server/tests/**/*.test.js'"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.10.0",
+    "exceljs": "^4.4.0",
+    "express": "^4.21.2",
+    "jszip": "^3.10.1",
+    "multer": "^1.4.5-lts.2",
+    "qrcode-terminal": "^0.12.0"
+  }
+}
