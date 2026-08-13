@@ -27,11 +27,25 @@ router.post('/sections', (req, res) => {
 });
 
 router.get('/students', (req, res) => {
-  const { section_id } = req.query;
+  const { section_id, status } = req.query;
+  const st = status === 'archived' ? 'archived' : 'active';
   const rows = section_id
-    ? db.prepare("SELECT * FROM students WHERE section_id = ? AND status='active' ORDER BY original_name").all(section_id)
-    : db.prepare("SELECT * FROM students WHERE status='active' ORDER BY original_name").all();
+    ? db.prepare('SELECT * FROM students WHERE section_id = ? AND status = ? ORDER BY original_name').all(section_id, st)
+    : db.prepare('SELECT * FROM students WHERE status = ? ORDER BY original_name').all(st);
   res.json(rows);
+});
+
+// الأرشفة تُخفي الطالب فقط — درجاته وملاحظاته وسجلّه تبقى كلها محفوظة وقابلة للإرجاع
+router.post('/students/:id/archive', (req, res) => {
+  const info = db.prepare("UPDATE students SET status='archived' WHERE id = ? AND status='active'").run(req.params.id);
+  if (info.changes === 0) return res.status(404).json({ error: 'الطالب غير موجود أو مؤرشف مسبقًا' });
+  res.json({ ok: true });
+});
+
+router.post('/students/:id/restore', (req, res) => {
+  const info = db.prepare("UPDATE students SET status='active' WHERE id = ? AND status='archived'").run(req.params.id);
+  if (info.changes === 0) return res.status(404).json({ error: 'الطالب غير موجود في الأرشيف' });
+  res.json({ ok: true });
 });
 
 router.get('/templates', (req, res) => {

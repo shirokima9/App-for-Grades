@@ -2,10 +2,16 @@
 // الاسم الأصلي يُحفظ دائمًا كما هو؛ التطبيع للمقارنة الداخلية فقط.
 
 const TASHKEEL = /[ً-ْٰـ]/g; // التشكيل + التطويل
-
+// علامات خفية شائعة في الملفات العربية المنسّقة:
+// LRM/RLM وعلامة العربية (ALM) والأحرف صفرية العرض وBOM وعلامات التضمين الاتجاهية
+const INVISIBLE = /[\u200E\u200F\u061C\u200B-\u200D\uFEFF\u202A-\u202E\u2066-\u2069]/g;
+// مسافات غير قياسية (منها المسافة غير القابلة للكسر NBSP) تتحول لمسافة عادية
+const ODD_SPACES = /[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g;
 export function normalizeArabic(name) {
   if (!name) return '';
   return String(name)
+    .replace(INVISIBLE, '')
+    .replace(ODD_SPACES, ' ')
     .replace(TASHKEEL, '')
     .replace(/[أإآٱ]/g, 'ا')
     .replace(/ة/g, 'ه')

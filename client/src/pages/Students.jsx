@@ -7,6 +7,9 @@ export default function Students() {
   const [sections, setSections] = useState([]);
   const [sectionId, setSectionId] = useState('');
   const [students, setStudents] = useState([]);
+  const [archived, setArchived] = useState([]);
+  const [showArchived, setShowArchived] = useState(false);
+  const [err, setErr] = useState('');
 
   useEffect(() => {
     api('/sections').then(list => {
@@ -17,13 +20,25 @@ export default function Students() {
     });
   }, []);
 
-  useEffect(() => {
-    if (sectionId) api(`/students?section_id=${sectionId}`).then(setStudents);
-  }, [sectionId]);
+  const load = () => {
+    if (!sectionId) return;
+    api(`/students?section_id=${sectionId}`).then(setStudents).catch(e => setErr(e.message));
+    api(`/students?section_id=${sectionId}&status=archived`).then(setArchived).catch(() => {});
+  };
+  useEffect(load, [sectionId]);
+
+  const restore = async (id) => {
+    setErr('');
+    try {
+      await api(`/students/${id}/restore`, { method: 'POST' });
+      load();
+    } catch (e) { setErr(e.message); }
+  };
 
   return (
     <div className="card">
       <h2>{t('students')}</h2>
+      {err && <div className="alert danger">{err}</div>}
       <div className="field">
         <label>{t('sections')}</label>
         <select value={sectionId} onChange={e => setSectionId(e.target.value)}>
@@ -41,6 +56,28 @@ export default function Students() {
           </tbody>
         </table>
       </div>
+
+      {archived.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <button className="ghost" onClick={() => setShowArchived(!showArchived)}>
+            {showArchived ? t('hideArchived') : t('showArchived')} ({archived.length})
+          </button>
+          {showArchived && (
+            <>
+              <p className="muted">{t('archiveNote')}</p>
+              <ul>
+                {archived.map(s => (
+                  <li key={s.id} style={{ marginBottom: 8 }}>
+                    {s.original_name}{' '}
+                    <button className="ghost" style={{ minHeight: 36, padding: '4px 14px' }}
+                      onClick={() => restore(s.id)}>{t('restore')}</button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

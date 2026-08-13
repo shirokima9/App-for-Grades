@@ -61,7 +61,7 @@ function compressCellList(cells) {
 // مع نقاط إضافية للكلمات المفتاحية، ويجب أن يعلو صفوفًا فيها بيانات.
 function guessHeaderRow(ws) {
   const maxScan = Math.min(ws.rowCount, 40);
-  let best = { row: 1, score: -1 };
+  let best = { row: null, score: -1, filled: 0, keywords: 0 };
   for (let r = 1; r <= maxScan; r++) {
     const row = ws.getRow(r);
     let filled = 0, keywords = 0;
@@ -73,13 +73,66 @@ function guessHeaderRow(ws) {
     });
     if (filled < 2) continue;
     const score = filled + keywords * 3;
-    if (score > best.score) best = { row: r, score };
+    if (score > best.score) best = { row: r, score, filled, keywords };
   }
-  return best.row;
+  // لا تخمين: نثق فقط إن وُجدت كلمتان مفتاحيتان على الأقل مع 3 خلايا معبأة
+  const confident = best.row !== null && best.keywords >= 2 && best.filled >= 3;
+  return { row: best.row, confident };
 }
 
-function analyzeSheet(ws) {
-  const headerRow = guessHeaderRow(ws);
+// أول 10 صفوف كما هي خامًا — ليرى المستخدم ما يراه التطبيق قبل أي قرار
+function rawPreview(ws, count = 10) {
+  const rows = [];
+  const maxCol = Math.min(ws.actualColumnCount || ws.columnCount || 1, 30);
+  for (let r = 1; r <= Math.min(count, ws.rowCount); r++) {
+    const row = ws.getRow(r);
+    const cells = [];
+    for (let c = 1; c <= maxCol; c++) {
+      const cell = row.getCell(c);
+      let text;
+      if (cell.isMerged && cell.master && cell.master.address !== cell.address) {
+        text = '⟵'; // خلية تابعة لدمج — القيمة في الخلية الرئيسة فقط
+      } else if (isFormulaCell(cell)) {
+        text = '=' + (cell.formula || cell.value?.formula || 'shared');
+      } else {
+        text = cellText(cell);
+      }
+      cells.push(text);
+    }
+    rows.push({ row: r, cells });
+  }
+  return { maxCol, rows };
+}
+
+function analyzeSheet(ws, headerRowOverride = null) {
+  const guess = headerRowOverride
+    ? { row: headerRowOverride, confident: true }
+    : guessHeaderRow(ws);
+  const headerRow = guess.row;
+  const merges = (ws.model && ws.model.merges) ? [...ws.model.merges] : [];
+  const base = {
+    name: ws.name,
+    rowCount: ws.rowCount,
+    columnCount: ws.columnCount,
+    actualRowCount: ws.actualRowCount ?? ws.rowCount,
+    actualColumnCount: ws.actualColumnCount ?? ws.columnCount,
+    merges,
+    preview: rawPreview(ws),
+    headerRowConfident: guess.confident,
+  };
+  const prot0 = ws.sheetProtection || null;
+  base.protected = !!(prot0 && prot0.sheet);
+  base.protectionDetails = prot0 ? { hasPassword: !!(prot0.algorithmName || prot0.password) } : null;
+
+  // فشل واضح بدل التخمين: بلا صف ترويسة موثوق لا نُكمل التحليل التلقائي
+  if (!guess.confident) {
+    return {
+      ...base,
+      headerRow: null, headers: [], firstDataRow: null, lastDataRow: null,
+      columns: [], validations: [],
+      needsManualHeader: true,
+    };
+  }
   const headers = [];
   ws.getRow(headerRow).eachCell({ includeEmpty: false }, (cell, colNum) => {
     const t = cellText(cell).trim();
@@ -140,17 +193,14 @@ function analyzeSheet(ws) {
     });
   }
 
-  const prot = ws.sheetProtection || null;
   return {
-    name: ws.name,
-    protected: !!(prot && prot.sheet),
-    protectionDetails: prot ? { hasPassword: !!(prot.algorithmName || prot.password) } : null,
-    rowCount: ws.rowCount,
-    columnCount: ws.columnCount,
+    ...base,
     headerRow,
     headers,
     firstDataRow,
     lastDataRow,
+    // فشل واضح: وجدنا الترويسة لكن لا صفوف بيانات تحتها
+    needsManualRange: firstDataRow === null,
     columns,
     validations,
   };
@@ -162,6 +212,15 @@ export async function scanWorkbook(filePath) {
   const sheets = [];
   wb.eachSheet((ws) => sheets.push(analyzeSheet(ws)));
   return { sheets };
+}
+
+// إعادة تحليل ورقة واحدة بصف ترويسة يحدده المستخدم يدويًا
+export async function analyzeOneSheet(filePath, sheetName, headerRowOverride) {
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.readFile(filePath);
+  const ws = wb.getWorksheet(sheetName);
+  if (!ws) throw new Error(`الورقة غير موجودة: ${sheetName}`);
+  return analyzeSheet(ws, headerRowOverride);
 }
 
 // استخراج صفوف الطلاب بعد المطابقة اليدوية للأعمدة

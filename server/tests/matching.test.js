@@ -13,6 +13,19 @@ test('التطبيع: الهمزات والتاء المربوطة والألف 
   assert.equal(normalizeArabic('  أحمد   سالم  '), 'احمد سالم');
 });
 
+test('التطبيع: المسافات غير القابلة للكسر وعلامات الاتجاه الخفية', () => {
+  // NBSP بدل المسافة العادية
+  assert.equal(normalizeArabic('أحمد\u00A0سالم'), 'احمد سالم');
+  // RLM و LRM داخل الاسم وحوله
+  assert.equal(normalizeArabic('\u200Fأحمد \u200Eسالم\u200F'), 'احمد سالم');
+  // علامة العربية ALM والأحرف صفرية العرض و BOM
+  assert.equal(normalizeArabic('\u061Cأحمد\u200B سالم\uFEFF'), 'احمد سالم');
+  // مزيج NBSP + RLM يجب أن يتطابق تمامًا مع الاسم النظيف
+  const dirty = '\u200Fأحمد\u00A0سالم محمد\u00A0البلوشي\u200F';
+  assert.equal(normalizeArabic(dirty), normalizeArabic('أحمد سالم محمد البلوشي'));
+  assert.equal(compareNames(normalizeArabic(dirty), normalizeArabic('احمد سالم محمد البلوشى')).level, 'exact');
+});
+
 test('تطابق تام بعد التطبيع', () => {
   const a = normalizeArabic('أحمد سالم محمد البلوشي');
   const b = normalizeArabic('احمد سالم محمد البلوشى');

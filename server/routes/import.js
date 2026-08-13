@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import { db, UPLOADS_DIR, backupDatabase, audit } from '../db/index.js';
-import { scanWorkbook, extractStudents } from '../excel/scan.js';
+import { scanWorkbook, extractStudents, analyzeOneSheet } from '../excel/scan.js';
 import { normalizeArabic, matchNames } from '../matching/names.js';
 
 const router = express.Router();
@@ -37,6 +37,21 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     res.json({ uploadId, originalName: req.file.originalname, scan });
   } catch (e) {
     res.status(500).json({ error: `فشل المسح البنيوي: ${e.message}` });
+  }
+});
+
+// 1ب) إعادة تحليل ورقة بصف ترويسة يحدده المستخدم يدويًا (عندما يفشل الاكتشاف)
+router.post('/analyze', async (req, res) => {
+  try {
+    const { uploadId, sheetName, headerRow } = req.body;
+    const hr = Number(headerRow);
+    if (!sheetName || !Number.isInteger(hr) || hr < 1) {
+      return res.status(400).json({ error: 'حدد الورقة وصف الترويسة (رقم صحيح ≥ 1)' });
+    }
+    const sheet = await analyzeOneSheet(uploadPath(uploadId), sheetName, hr);
+    res.json({ sheet });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
   }
 });
 
@@ -162,7 +177,7 @@ router.post('/commit', async (req, res) => {
       // الطلاب النشطون في الشعبة غير الواردين في الملف
       const activeInSection = db.prepare("SELECT * FROM students WHERE section_id = ? AND status = 'active'").all(sectionId);
       for (const st of activeInSection) {
-        if (!seenStudentIds.has(st.id)) diff.removed.push(st.original_name);
+        if (!seenStudentIds.has(st.id)) diff.removed.push({ id: st.id, name: st.original_name });
       }
       return tpl.id;
     });

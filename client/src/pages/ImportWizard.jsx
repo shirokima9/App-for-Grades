@@ -4,6 +4,12 @@ import { useI18n } from '../i18n.jsx';
 
 const STEPS = ['chooseFile', 'scanReport', 'mapping', 'matchStudents', 'importDone'];
 
+function colLetterOf(n) {
+  let s = '';
+  while (n > 0) { s = String.fromCharCode(65 + ((n - 1) % 26)) + s; n = Math.floor((n - 1) / 26); }
+  return s;
+}
+
 export default function ImportWizard() {
   const { t } = useI18n();
   const [step, setStep] = useState(0);
@@ -27,6 +33,31 @@ export default function ImportWizard() {
   const [matchData, setMatchData] = useState(null);
   const [decisions, setDecisions] = useState({}); // row -> {action, studentId}
   const [commitResult, setCommitResult] = useState(null);
+  const [manualHeader, setManualHeader] = useState('');
+  const [archivedIds, setArchivedIds] = useState([]);
+
+  // إعادة تحليل الورقة بصف ترويسة يحدده المستخدم عندما يفشل الاكتشاف التلقائي
+  const reAnalyze = async () => {
+    setBusy(true); setErr('');
+    try {
+      const { sheet: fresh } = await api('/import/analyze', {
+        json: { uploadId: uploadInfo.uploadId, sheetName, headerRow: Number(manualHeader) },
+      });
+      setUploadInfo({
+        ...uploadInfo,
+        scan: { sheets: uploadInfo.scan.sheets.map(s => (s.name === fresh.name ? fresh : s)) },
+      });
+    } catch (e) { setErr(e.message); }
+    setBusy(false);
+  };
+
+  const archiveStudent = async (id) => {
+    setErr('');
+    try {
+      await api(`/students/${id}/archive`, { method: 'POST' });
+      setArchivedIds([...archivedIds, id]);
+    } catch (e) { setErr(e.message); }
+  };
 
   useEffect(() => {
     api('/sections').then(list => {
@@ -40,9 +71,9 @@ export default function ImportWizard() {
     [uploadInfo, sheetName]
   );
 
-  // عند اختيار ورقة: تعبئة القيم المكتشفة تلقائيًا
+  // عند اختيار ورقة: تعبئة القيم المكتشفة تلقائيًا (فقط إن كان الاكتشاف موثوقًا)
   useEffect(() => {
-    if (!sheet) return;
+    if (!sheet || !sheet.headerRow) return;
     setHeaderRow(sheet.headerRow);
     setFirstDataRow(sheet.firstDataRow ?? sheet.headerRow + 1);
     setLastDataRow(sheet.lastDataRow ?? sheet.headerRow + 1);
@@ -194,13 +225,69 @@ export default function ImportWizard() {
           </div>
           {sheet && (
             <>
+              <h3>{t('diagnostics')}</h3>
               <div className="summary-chips">
                 <span className={`badge ${sheet.protected ? 'warn' : 'info'}`}>
                   {sheet.protected ? t('protected') : t('notProtected')}
                 </span>
-                <span className="badge info">{t('headerRow')}: {sheet.headerRow}</span>
-                <span className="badge info">{t('dataRange')}: {sheet.firstDataRow} – {sheet.lastDataRow}</span>
+                <span className="badge info">{t('usedSize')}: {sheet.actualRowCount} × {sheet.actualColumnCount}</span>
+                <span className="badge info">
+                  {t('mergedCells')}: {sheet.merges.length}
+                </span>
               </div>
+              {sheet.merges.length > 0 && (
+                <p className="muted" dir="ltr" style={{ textAlign: 'end' }}>{sheet.merges.join('  ،  ')}</p>
+              )}
+              <h4>{t('rawPreviewTitle')}</h4>
+              <div className="tablewrap">
+                <table className="data" style={{ fontSize: '0.82rem' }}>
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      {Array.from({ length: sheet.preview.maxCol }, (_, i) => (
+                        <th key={i} dir="ltr">{colLetterOf(i + 1)}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sheet.preview.rows.map(r => (
+                      <tr key={r.row}>
+                        <td><b>{r.row}</b></td>
+                        {r.cells.map((c, i) => <td key={i}>{c}</td>)}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {sheet.needsManualHeader && (
+                <div className="alert warn">
+                  {t('manualHeaderNeeded')}
+                  <div className="rowflex" style={{ marginTop: 10 }}>
+                    <input type="number" min="1" value={manualHeader}
+                      onChange={e => setManualHeader(e.target.value)}
+                      placeholder={t('headerRow')} style={{ width: 120 }} />
+                    <button className="primary" onClick={reAnalyze} disabled={busy || !manualHeader}>
+                      {t('reAnalyze')}
+                    </button>
+                  </div>
+                </div>
+              )}
+              {!sheet.needsManualHeader && sheet.needsManualRange && (
+                <div className="alert warn">{t('manualRangeNeeded')}</div>
+              )}
+
+              {sheet.headerRow && (
+                <>
+                  <h3>{t('analysis')}</h3>
+                  <div className="summary-chips">
+                    <span className="badge info">{t('headerRow')}: {sheet.headerRow}</span>
+                    {sheet.firstDataRow && (
+                      <span className="badge info">{t('dataRange')}: {sheet.firstDataRow} – {sheet.lastDataRow}</span>
+                    )}
+                  </div>
+                </>
+              )}
               <h3>{t('column')}</h3>
               <div className="tablewrap">
                 <table className="data">
@@ -244,7 +331,7 @@ export default function ImportWizard() {
           )}
           <div className="rowflex" style={{ marginTop: 12 }}>
             <button className="ghost" onClick={() => setStep(0)}>{t('back')}</button>
-            <button className="primary" onClick={() => setStep(2)} disabled={!sheet}>{t('next')}</button>
+            <button className="primary" onClick={() => setStep(2)} disabled={!sheet?.headerRow}>{t('next')}</button>
           </div>
         </div>
       )}
@@ -403,7 +490,21 @@ export default function ImportWizard() {
             <><h3>{t('moved')}</h3><ul>{commitResult.diff.moved.map(n => <li key={n}>{n}</li>)}</ul></>
           )}
           {commitResult.diff.removed.length > 0 && (
-            <><h3>{t('removedDiff')}</h3><ul>{commitResult.diff.removed.map(n => <li key={n}>{n}</li>)}</ul></>
+            <>
+              <h3>{t('removedDiff')}</h3>
+              <p className="muted">{t('archiveNote')}</p>
+              <ul>
+                {commitResult.diff.removed.map(r => (
+                  <li key={r.id} style={{ marginBottom: 8 }}>
+                    {r.name}{' '}
+                    {archivedIds.includes(r.id)
+                      ? <span className="badge warn">{t('archived')} ✓</span>
+                      : <button className="ghost" style={{ minHeight: 36, padding: '4px 14px' }}
+                          onClick={() => archiveStudent(r.id)}>{t('archive')}</button>}
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
           <a className="btn" href="#/students" style={{ display: 'inline-block', textDecoration: 'none' }}>{t('students')}</a>
         </div>
