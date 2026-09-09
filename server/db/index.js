@@ -138,6 +138,15 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 `);
 
+// هجرات بسيطة: إضافة أعمدة جديدة للقوالب القديمة دون فقد بيانات
+const templateCols = db.prepare('PRAGMA table_info(templates)').all().map(c => c.name);
+if (!templateCols.includes('source_upload_id')) {
+  db.exec('ALTER TABLE templates ADD COLUMN source_upload_id TEXT');
+}
+if (!templateCols.includes('section_id')) {
+  db.exec('ALTER TABLE templates ADD COLUMN section_id INTEGER');
+}
+
 const defaultSettings = {
   behavior_alert_threshold: '3',
   absence_alert_threshold: '5',

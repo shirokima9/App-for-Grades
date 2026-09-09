@@ -1,6 +1,7 @@
 // يولّد ملفًا يحاكي الملف الوزاري: ترويسة مدرسة علوية، معادلات، Data Validation،
 // ورقة محمية، تنسيق شرطي — للاختبار فقط.
 import ExcelJS from 'exceljs';
+import JSZip from 'jszip';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -131,5 +132,25 @@ ws2.getCell('A3').value = 'لا تعدّل على المعادلات أو الت
 await ws2.protect('moe1234', { selectLockedCells: true, selectUnlockedCells: true });
 
 await wb.xlsx.writeFile(OUT);
+
+// إكسل يحفظ مع كل معادلة قيمةً محسوبة مخزّنة <v>، وهذا مصدر خطر حقيقي:
+// لو غُيّرت خلية إدخال دون معالجة، تبقى المجاميع تعرض القيم القديمة.
+// نحقنها هنا ليحاكي الملف التجريبي ملفًا وزاريًا حقيقيًا حفظه إكسل.
+const zip = await JSZip.loadAsync(fs.readFileSync(OUT));
+const sheetPath = 'xl/worksheets/sheet1.xml';
+let xml = await zip.file(sheetPath).async('string');
+let injected = 0;
+xml = xml.replace(/(<f>[^<]*<\/f>)(?!<v>)/g, (m) => { injected++; return `${m}<v>0</v>`; });
+zip.file(sheetPath, xml);
+zip.file('xl/calcChain.xml',
+  '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><calcChain xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><c r="I6" i="1"/></calcChain>');
+const ct = await zip.file('[Content_Types].xml').async('string');
+if (!ct.includes('calcChain')) {
+  zip.file('[Content_Types].xml', ct.replace('</Types>',
+    '<Override PartName="/xl/calcChain.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.calcChain+xml"/></Types>'));
+}
+fs.writeFileSync(OUT, await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' }));
+
 console.log(`تم إنشاء الملف التجريبي: ${OUT}`);
+console.log(`قيم معادلات مخزّنة محقونة (تحاكي ما يحفظه إكسل): ${injected}`);
 console.log(`عدد الطلاب: ${NAMES.length} | صف العناوين: ${HEADER_ROW} | نطاق البيانات: ${FIRST}-${LAST}`);

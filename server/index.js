@@ -6,13 +6,21 @@ import qrcode from 'qrcode-terminal';
 import { ROOT } from './db/index.js';
 import coreRoutes from './routes/core.js';
 import importRoutes from './routes/import.js';
+import gradesRoutes from './routes/grades.js';
+import submitRoutes from './routes/submit.js';
+import analyticsRoutes from './routes/analytics.js';
+import reportsRoutes from './routes/reports.js';
 
 const PORT = Number(process.env.PORT || 4750);
 const app = express();
 
 app.use(express.json({ limit: '10mb' }));
 app.use('/api', coreRoutes);
+app.use('/api', gradesRoutes);
+app.use('/api', analyticsRoutes);
+app.use('/api', reportsRoutes);
 app.use('/api/import', importRoutes);
+app.use('/api/submit', submitRoutes);
 
 // الواجهة المبنية تُخدَم من نفس الخادم — منفذ واحد، بلا أي مورد خارجي
 const DIST = path.join(ROOT, 'client', 'dist');

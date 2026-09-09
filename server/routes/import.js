@@ -124,15 +124,19 @@ router.post('/commit', async (req, res) => {
       const scoreColsJson = JSON.stringify(mapping.scoreColumns || []);
       if (tpl) {
         db.prepare(`UPDATE templates SET sheet_name=?, header_row=?, first_data_row=?, last_data_row=?,
-          name_column=?, grade_column=?, section_column=?, score_columns=? WHERE id=?`)
+          name_column=?, grade_column=?, section_column=?, score_columns=?,
+          source_upload_id=?, section_id=? WHERE id=?`)
           .run(mapping.sheetName, mapping.headerRow, mapping.firstDataRow, mapping.lastDataRow,
-            mapping.nameColumn, mapping.gradeColumn || null, mapping.sectionColumn || null, scoreColsJson, tpl.id);
+            mapping.nameColumn, mapping.gradeColumn || null, mapping.sectionColumn || null, scoreColsJson,
+            uploadId, sectionId, tpl.id);
         db.prepare('DELETE FROM import_matches WHERE template_id = ?').run(tpl.id);
       } else {
         const info = db.prepare(`INSERT INTO templates(name, sheet_name, header_row, first_data_row, last_data_row,
-          name_column, grade_column, section_column, score_columns) VALUES (?,?,?,?,?,?,?,?,?)`)
+          name_column, grade_column, section_column, score_columns, source_upload_id, section_id)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
           .run(templateName, mapping.sheetName, mapping.headerRow, mapping.firstDataRow, mapping.lastDataRow,
-            mapping.nameColumn, mapping.gradeColumn || null, mapping.sectionColumn || null, scoreColsJson);
+            mapping.nameColumn, mapping.gradeColumn || null, mapping.sectionColumn || null, scoreColsJson,
+            uploadId, sectionId);
         tpl = { id: info.lastInsertRowid };
       }
 
@@ -150,11 +154,14 @@ router.post('/commit', async (req, res) => {
       for (const d of decisions) {
         if (d.action === 'skip') continue;
         let studentId;
+        let decidedBy = d.decidedBy || 'manual';
         if (d.action === 'new') {
           const info = db.prepare('INSERT INTO students(section_id, original_name, normalized_name) VALUES (?,?,?)')
             .run(sectionId, d.name, normalizeArabic(d.name));
           studentId = info.lastInsertRowid;
           diff.added.push(d.name);
+          // الطالب أُنشئ من هذا الصف بعينه — ارتباطه بالصف يقيني لا اجتهادي
+          decidedBy = 'auto-new';
         } else {
           studentId = d.studentId;
           const st = db.prepare('SELECT * FROM students WHERE id = ?').get(studentId);
@@ -171,7 +178,7 @@ router.post('/commit', async (req, res) => {
         seenStudentIds.add(studentId);
         db.prepare(`INSERT INTO import_matches(template_id, student_id, file_row, file_name, decided_by)
           VALUES (?,?,?,?,?)`)
-          .run(tpl.id, studentId, d.row, d.name, d.decidedBy || 'manual');
+          .run(tpl.id, studentId, d.row, d.name, decidedBy);
       }
 
       // الطلاب النشطون في الشعبة غير الواردين في الملف
